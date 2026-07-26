@@ -512,3 +512,72 @@ tests:
           retry_once: true
           log:
             no_expect_ids: [9530230]
+  # 2.2.1 (codex audit #9): the root, root-static-file and connector branches
+  # were missing the optional basepath segment that every other branch had, so
+  # a documented single-segment mount 404'd the web-vault entry point itself.
+  # These assert the supported /vault mount is reachable.
+  - test_id: 31
+    desc: "Web-vault root under a single-segment basepath is allowed"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /vault/
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 32
+    desc: "index.html under a single-segment basepath is allowed"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /vault/index.html
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 33
+    desc: "A root-level static file under a basepath is allowed"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /vault/favicon.ico
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 34
+    desc: "A connector page under a basepath is allowed"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /vault/sso-connector.html
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 35
+    desc: "A multi-segment fabricated path is still denied (prefix group is ONE segment)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /a/b/index.html
+        output:
+          retry_once: true
+          log:
+            expect_ids: [9530230]

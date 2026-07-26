@@ -79,7 +79,7 @@ Edit `vaultwarden-config.conf`:
 | Variable | Default | Meaning |
 |---|---|---|
 | `tx.vaultwarden-plugin_enabled` | `0` | Master on/off. **OFF by default** — the plugin weakens CRS on the Vaultwarden routes, so it must be enabled per vhost, not globally. Set to `1` only in the Vaultwarden server/location block (see Roll-out). |
-| `tx.vaultwarden-plugin_positive_security` | `0` | **Independent** opt-in for the path-allowlist layer (`9530230`, plus the `9530220` method and `9530225` Content-Type rules). Does **not** follow `_enabled` — it denies by default, so an unknown route is answered 404; enable only after a DetectionOnly burn-in. **Changed in 2.2.0:** this used to follow `_enabled`, so upgrading deployments must now set it to `1` explicitly to keep the allowlist running. |
+| `tx.vaultwarden-plugin_positive_security` | `0` | **Independent** opt-in for the path-allowlist layer (`9530230`, plus the `9530220` method and `9530225` Content-Type rules). Does **not** follow `_enabled` — it denies by default, so an unknown route is answered 404; enable only after a DetectionOnly burn-in. **Changed in 2.2.0:** this used to follow `_enabled`, so upgrading deployments must now set it to `1` explicitly to keep the allowlist running. **Fixed in 2.2.1:** this flag no longer gates the CVE-driven rules `9530234`/`9530235`/`9530236` — they run whenever the plugin is enabled. |
 | `tx.vaultwarden-plugin_argname_allowlist` | `0` | Experimental, **independent** opt-in for the arg-name allowlists (`9530240` token form fields, `9530245` GET query names). Does **not** follow `_enabled`; enable only after a DetectionOnly burn-in. |
 | `tx.vaultwarden-plugin_admin_disabled` | `0` | **Independent** opt-in: deny `/admin` outright (`9530250`, returns 404). Removes the admin-panel RCE surface (CVE-2025-24364, GHSA-h6cc-rc6q-23j4). Does **not** follow `_enabled` — denying a real route must be a conscious choice. Turn on if you don't actively use the admin panel. |
 
@@ -144,6 +144,16 @@ On Apache/mod_security2, set the same variable inside the matching
 > follows `tx.vaultwarden-plugin_enabled`. If you were relying on the
 > allowlist switching on with the plugin, add the explicit `setvar` from step
 > 2 — otherwise the allowlist silently stops running after the upgrade.
+
+> **Upgrading to 2.2.1 (security):** on 2.2.0 the opt-in above also switched
+> off the CVE-driven rules that happen to share its ID range — `9530235`
+> (icon-endpoint SSRF, CVE-2026-47160) and `9530236` + its `9530234` seeder
+> (SSO CSRF, CVE-2026-47158). A deployment that set only
+> `tx.vaultwarden-plugin_enabled=1` was therefore running **neither** CVE
+> defence. 2.2.1 narrows the strip range so those rules always run with the
+> plugin. No config change is needed; just upgrade. Also fixed: a
+> `POST`/`PUT` to `/api` with **no** `Content-Type` header at all bypassed the
+> `9530225` Content-Type check entirely (absent-variable fail-open).
 
 Rule ID range: **9,530,000 – 9,530,999** (block base 9,530,000; free in the
 [CRS plugin registry](https://github.com/coreruleset/plugin-registry),

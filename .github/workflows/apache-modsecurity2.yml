@@ -83,6 +83,9 @@ jobs:
           ./ftw run   -d tests/regression --config tests/integration/.ftw.yml \
             --show-failures-only
 
+      - name: Absent-Content-Type fail-open probe (raw socket; go-ftw cannot express it)
+        run: ./tests/absent-content-type-probe.sh apache
+
       - name: Dump logs on failure
         if: failure()
         run: |

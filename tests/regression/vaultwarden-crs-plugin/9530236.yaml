@@ -294,3 +294,25 @@ tests:
           retry_once: true
           log:
             no_expect_ids: [9530236]
+  # 2.2.1 (codex audit #2): same gate bug as 9530235-28 -- the SSO CSRF defence
+  # and its 9530234 seeder sat inside the 9530220-9530239 strip range, so they
+  # did not run unless the OPT-IN path allowlist was also enabled. Asserts both
+  # the rule and its seeder survive with positive_security OFF.
+  - test_id: 14
+    desc: "SSO CSRF defence still runs when positive-security is OFF"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: possec-off.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+            Sec-Fetch-Mode: cors
+          port: 80
+          method: GET
+          uri: /identity/connect/authorize?client_id=web
+        output:
+          retry_once: true
+          log:
+            expect_ids: [9530236]
