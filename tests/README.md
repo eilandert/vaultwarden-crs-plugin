@@ -34,7 +34,7 @@ values in `audit.log`). go-ftw brackets each test with marker requests, and
 first line is the *previous* test's marker, the stage ID does not match, and the
 start marker is never found:
 
-```
+```text
 DBG found unexpected marker line while looking for 9530230-6-...-s: ... 9530230-5-...-e
 DBG start marker not found while collecting marked lines
 ```
