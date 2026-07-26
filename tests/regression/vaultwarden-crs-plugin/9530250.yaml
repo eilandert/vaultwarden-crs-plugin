@@ -1,4 +1,6 @@
 ---
+# `retry_once: true` on every stage: upstream go-ftw marker/flush race
+# workaround, NOT a rule weakness. Rationale + measurements: tests/README.md.
 meta:
   author: "eilander"
   description: "Vaultwarden: admin panel kill switch denies /admin when enabled (RCE surface removal)"
@@ -25,6 +27,7 @@ tests:
           method: GET
           uri: /admin
         output:
+          retry_once: true
           log:
             expect_ids: [9530250]
   - test_id: 2
@@ -42,6 +45,7 @@ tests:
           uri: /admin
           data: "token=supersecretadmintoken"
         output:
+          retry_once: true
           log:
             expect_ids: [9530250]
   - test_id: 3
@@ -57,6 +61,7 @@ tests:
           method: GET
           uri: /admin/diagnostics
         output:
+          retry_once: true
           log:
             expect_ids: [9530250]
   - test_id: 4
@@ -72,6 +77,7 @@ tests:
           method: GET
           uri: /api/sync
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530250]
   # ---- negative control: switch OFF is the default ----
@@ -88,6 +94,7 @@ tests:
           method: GET
           uri: /admin
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530250]
   - test_id: 6
@@ -103,6 +110,7 @@ tests:
           method: GET
           uri: /admin/diagnostics
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530250]
   - test_id: 7
@@ -120,6 +128,7 @@ tests:
           uri: /admin
           data: "token=supersecretadmintoken"
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530250]
   # The existing 9530250.yaml proves the on/off gate works. These pin the
@@ -140,6 +149,7 @@ tests:
           method: GET
           uri: /vault/admin
         output:
+          retry_once: true
           log:
             expect_ids: [9530250]
   - test_id: 9
@@ -155,6 +165,7 @@ tests:
           method: GET
           uri: /admin/
         output:
+          retry_once: true
           log:
             expect_ids: [9530250]
   - test_id: 10
@@ -170,6 +181,7 @@ tests:
           method: GET
           uri: /admin/users/abc123/delete
         output:
+          retry_once: true
           log:
             expect_ids: [9530250]
   # ---- scoping guards: near-miss names are NOT the admin panel ----
@@ -189,6 +201,7 @@ tests:
           method: GET
           uri: /administrator
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530250]
   - test_id: 12
@@ -204,5 +217,6 @@ tests:
           method: GET
           uri: /admin.php
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530250]

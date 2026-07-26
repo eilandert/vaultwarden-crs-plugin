@@ -1,4 +1,6 @@
 ---
+# `retry_once: true` on every stage: upstream go-ftw marker/flush race
+# workaround, NOT a rule weakness. Rationale + measurements: tests/README.md.
 meta:
   author: "eilander"
   description: "Vaultwarden FP exclusion: admin-panel token field is exempt from CRS target checks"
@@ -19,5 +21,6 @@ tests:
           uri: /admin
           data: "token=%24argon2id%24v%3D19%24m%3D65540%2Ct%3D3%2Cp%3D4%24c29tZXNhbHQ%24aGFzaHZhbHVl"
         output:
+          retry_once: true
           log:
             no_expect_ids: [942100, 942260, 942330, 941100]

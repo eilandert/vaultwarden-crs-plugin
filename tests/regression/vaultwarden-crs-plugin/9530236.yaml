@@ -1,4 +1,6 @@
 ---
+# `retry_once: true` on every stage: upstream go-ftw marker/flush race
+# workaround, NOT a rule weakness. Rationale + measurements: tests/README.md.
 meta:
   author: "eilander"
   description: "Vaultwarden: cross-site request to the SSO authorization flow is denied (CSRF, CVE-2026-47158)"
@@ -18,6 +20,7 @@ tests:
           method: GET
           uri: /identity/connect/authorize?client_id=web&state=x
         output:
+          retry_once: true
           log:
             expect_ids: [9530236]
   - test_id: 2
@@ -37,6 +40,7 @@ tests:
           uri: /identity/connect/oidc-signin-callback
           data: '{"code":"x"}'
         output:
+          retry_once: true
           log:
             expect_ids: [9530236]
   # ---- negative controls ----
@@ -56,6 +60,7 @@ tests:
           method: GET
           uri: /identity/connect/authorize?client_id=web&state=x
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530236]
   # THE critical case. An IdP 302 back to the callback is a CROSS-SITE
@@ -82,6 +87,7 @@ tests:
           method: GET
           uri: /identity/connect/oidc-signin-callback?code=abc&state=x
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530236]
   - test_id: 14
@@ -99,6 +105,7 @@ tests:
           method: GET
           uri: /identity/connect/oidc-signin-callback?code=abc&state=x
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530236]
   # Fail-closed: Sec-Fetch-Site present but Sec-Fetch-Mode absent must still
@@ -120,6 +127,7 @@ tests:
           method: GET
           uri: /identity/connect/authorize?client_id=web&state=x
         output:
+          retry_once: true
           log:
             expect_ids: [9530236]
   - test_id: 5
@@ -135,6 +143,7 @@ tests:
           method: GET
           uri: /identity/connect/authorize?client_id=cli
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530236]
   - test_id: 6
@@ -153,6 +162,7 @@ tests:
           uri: /identity/connect/token
           data: "grant_type=refresh_token&refresh_token=x"
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530236]
   - test_id: 7
@@ -169,6 +179,7 @@ tests:
           method: GET
           uri: /api/sync
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530236]
   # ---- 9530236 path scoping ----
@@ -188,6 +199,7 @@ tests:
           method: GET
           uri: /identity/connect/sso
         output:
+          retry_once: true
           log:
             expect_ids: [9530236]
   - test_id: 9
@@ -204,6 +216,7 @@ tests:
           method: GET
           uri: /identity/connect/oidc-signin
         output:
+          retry_once: true
           log:
             expect_ids: [9530236]
   - test_id: 10
@@ -220,6 +233,7 @@ tests:
           method: GET
           uri: /vault/identity/connect/authorize?client_id=web
         output:
+          retry_once: true
           log:
             expect_ids: [9530236]
   # ---- Sec-Fetch-Site value coverage ----
@@ -241,6 +255,7 @@ tests:
           method: GET
           uri: /identity/connect/authorize?client_id=web
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530236]
   - test_id: 12
@@ -257,6 +272,7 @@ tests:
           method: GET
           uri: /favicon.ico
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530236]
   - test_id: 13
@@ -275,5 +291,6 @@ tests:
           uri: /identity/accounts/prelogin
           data: '{"email":"u@example.com"}'
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530236]

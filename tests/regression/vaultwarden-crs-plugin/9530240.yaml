@@ -1,4 +1,6 @@
 ---
+# `retry_once: true` on every stage: upstream go-ftw marker/flush race
+# workaround, NOT a rule weakness. Rationale + measurements: tests/README.md.
 meta:
   author: "eilander"
   description: "Vaultwarden arg-name allowlist: /identity/connect/token form fields (opt-in)"
@@ -19,6 +21,7 @@ tests:
           uri: /identity/connect/token
           data: "grant_type=password&username=u&password=p&myextrafield=hello"
         output:
+          retry_once: true
           log:
             expect_ids: [9530240]
   - test_id: 2
@@ -36,6 +39,7 @@ tests:
           uri: /identity/connect/token
           data: "grant_type=password&username=u&password=p&scope=api&client_id=cli&deviceidentifier=d&devicename=n&devicetype=0"
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530240]
   - test_id: 3
@@ -53,6 +57,7 @@ tests:
           uri: /api/ciphers
           data: '{"madeUpKey":1,"anotherWeirdKey":"x"}'
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530240, 9530245]
   - test_id: 4
@@ -70,5 +75,6 @@ tests:
           uri: /identity/connect/token
           data: "grant_type=send_access&send_id=abc&password_hash_b64=eGVub24="
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530240]

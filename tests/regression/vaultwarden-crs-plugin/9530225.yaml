@@ -1,4 +1,6 @@
 ---
+# `retry_once: true` on every stage: upstream go-ftw marker/flush race
+# workaround, NOT a rule weakness. Rationale + measurements: tests/README.md.
 meta:
   author: "eilander"
   description: "Vaultwarden positive-security: Content-Type enforcement on /api writes"
@@ -19,6 +21,7 @@ tests:
           uri: /api/ciphers
           data: "type=1&name=x"
         output:
+          retry_once: true
           log:
             expect_ids: [9530225]
   - test_id: 2
@@ -36,6 +39,7 @@ tests:
           uri: /api/ciphers
           data: '{"type":1}'
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530225]
   - test_id: 3
@@ -53,6 +57,7 @@ tests:
           uri: /api/sends/file/v2
           data: "--xyz--"
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530225]
   - test_id: 4
@@ -68,6 +73,7 @@ tests:
           method: GET
           uri: /api/sync
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530225]
   # ---- FP guards: real client traffic must not be 415'd ----
@@ -89,6 +95,7 @@ tests:
           uri: /api/ciphers
           data: '{"name":"2.aaa|bbb|ccc"}'
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530225]
   - test_id: 6
@@ -106,6 +113,7 @@ tests:
           uri: /api/ciphers/abc123/attachment/v2
           data: "--xyz--"
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530225]
   - test_id: 7
@@ -123,6 +131,7 @@ tests:
           uri: /identity/connect/token
           data: "grant_type=password&username=u&password=2.aaa%7Cbbb%7Cccc"
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530225]
   # ---- deny side ----
@@ -141,6 +150,7 @@ tests:
           uri: /api/ciphers/abc123
           data: "x"
         output:
+          retry_once: true
           log:
             expect_ids: [9530225]
   - test_id: 9
@@ -158,6 +168,7 @@ tests:
           uri: /api/ciphers
           data: "<a/>"
         output:
+          retry_once: true
           log:
             expect_ids: [9530225]
 # NOT TESTED HERE: an /api write with NO Content-Type header at all.

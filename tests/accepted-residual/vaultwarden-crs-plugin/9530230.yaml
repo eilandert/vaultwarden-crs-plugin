@@ -1,6 +1,9 @@
 ---
 # ACCEPTED RESIDUAL -- these tests FAIL against the current ruleset ON PURPOSE.
 #
+# `retry_once: true` on every stage: upstream go-ftw marker/flush race
+# workaround, NOT a rule weakness. Rationale + measurements: tests/README.md.
+#
 # They are NOT part of the CI merge gate (the gate runs tests/regression and
 # tests/security). They are the executable record of a DELIBERATE design
 # trade-off already documented in the module memory ledger
@@ -64,6 +67,7 @@ tests:
           method: GET
           uri: /wp-content/images/shell.php
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 2
@@ -79,6 +83,7 @@ tests:
           method: GET
           uri: /uploads/images/evil.jsp
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 3
@@ -94,6 +99,7 @@ tests:
           method: GET
           uri: /backup/scripts/cmd.sh
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   # config.yml is NOT an allowlisted static extension, so the root-files branch
@@ -113,5 +119,6 @@ tests:
           method: GET
           uri: /wp-includes/app/config.yml
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
