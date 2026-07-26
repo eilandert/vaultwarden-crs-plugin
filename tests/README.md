@@ -85,3 +85,32 @@ Measured on the 32-core builder, `worker_processes auto`:
   expressed — documented in `9530225.yaml` rather than faked.
 - **Build `crs` before `apache`/`nginx`**, and `sudo chmod -R a+rX tests/logs`
   before every run.
+
+## Probing the engines by hand (curl instead of go-ftw)
+
+Useful for engine-behaviour questions go-ftw cannot express. Three traps, each
+of which produced a confidently wrong measurement before being caught
+(2026-07-26):
+
+- **`SecRuleEngine DetectionOnly`** (in `crs/modsecurity.conf`) means `deny`
+  never changes the HTTP status — with raw curl *everything* is 200. Same root
+  cause as "status is not the signal" above, but it bites harder here because
+  there is no `expect_ids` to fall back on. Grep the audit log.
+- **Deleting `audit.log` does not recreate it.** After `rm`, restart the
+  container — otherwise every later grep reads a missing file and returns `0`,
+  which is indistinguishable from "the rule did not fire". Always print the
+  log's line count next to any hit count.
+- **Docker layer cache silently keeps the OLD rule.** `/opt/crs` reaches the
+  engine images via `COPY --from=crs`, so editing `crs/crs-main.conf` and
+  rebuilding only `apache`/`nginx` runs the *previous* config — `--no-cache` on
+  the engine image does not help. Rebuild `crs` first, then verify the rule text
+  inside the running container before believing anything:
+
+  ```bash
+  docker exec integration-apache-1 sed -n '57p' /opt/crs/crs-main.conf
+  ```
+
+**A bare `0` hits is not evidence.** Pair every negative result with a positive
+control — the same rule with the variable part hardcoded — run under identical
+conditions. Otherwise you cannot separate "the feature is absent" from "the
+probe never ran".
