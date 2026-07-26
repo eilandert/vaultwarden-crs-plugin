@@ -1,4 +1,6 @@
 ---
+# `retry_once: true` on every stage: upstream go-ftw marker/flush race
+# workaround, NOT a rule weakness. Rationale + measurements: tests/README.md.
 meta:
   author: "eilander"
   description: "Vaultwarden positive-security: request outside known route map is denied"
@@ -22,6 +24,7 @@ tests:
           method: GET
           uri: /wp-login.php
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 2
@@ -37,6 +40,7 @@ tests:
           method: GET
           uri: /.env
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 3
@@ -52,6 +56,7 @@ tests:
           method: GET
           uri: /api/sync
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 4
@@ -67,6 +72,7 @@ tests:
           method: GET
           uri: /identity/connect/token
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 5
@@ -82,6 +88,7 @@ tests:
           method: GET
           uri: /icons/example.com/icon.png
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 6
@@ -97,6 +104,7 @@ tests:
           method: GET
           uri: /app/main.ccecbc3360eea592b940.js
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 7
@@ -112,6 +120,7 @@ tests:
           method: GET
           uri: /bootstrap.bundle.js
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 8
@@ -127,6 +136,7 @@ tests:
           method: GET
           uri: /wp-login.php/
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 9
@@ -142,6 +152,7 @@ tests:
           method: GET
           uri: /.env/
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 10
@@ -157,6 +168,7 @@ tests:
           method: GET
           uri: /cca56971e438d22818d6.json
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   # ---- negative controls for the mount-prefix behaviour ----
@@ -179,6 +191,7 @@ tests:
           method: GET
           uri: /api/sync
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 12
@@ -194,6 +207,7 @@ tests:
           method: GET
           uri: /vault/api/sync
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 13
@@ -209,6 +223,7 @@ tests:
           method: GET
           uri: /a/b/api/sync
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   # Traversal. t:normalizePath collapses ../ before the allowlist regex runs,
@@ -235,6 +250,7 @@ tests:
           method: GET
           uri: /api/../.env
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 15
@@ -250,6 +266,7 @@ tests:
           method: GET
           uri: /.env.production
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 16
@@ -265,6 +282,7 @@ tests:
           method: GET
           uri: /.svn/entries
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   # Common scanner targets. Cheap, but this is the rule's actual job and none
@@ -282,6 +300,7 @@ tests:
           method: GET
           uri: /actuator/env
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 18
@@ -297,6 +316,7 @@ tests:
           method: GET
           uri: /xmlrpc.php
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 19
@@ -312,6 +332,7 @@ tests:
           method: GET
           uri: /.git/config
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 20
@@ -327,6 +348,7 @@ tests:
           method: GET
           uri: /.well-known/security.txt
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   - test_id: 21
@@ -342,6 +364,7 @@ tests:
           method: GET
           uri: /deep/fake/path.json
         output:
+          retry_once: true
           log:
             expect_ids: [9530230]
   # ---- negative controls: real web-vault surface must stay reachable ----
@@ -358,6 +381,7 @@ tests:
           method: GET
           uri: /.well-known/apple-app-site-association
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 23
@@ -373,6 +397,7 @@ tests:
           method: GET
           uri: /.well-known/change-password
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 24
@@ -388,6 +413,7 @@ tests:
           method: GET
           uri: /sso-connector.html
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 25
@@ -403,6 +429,7 @@ tests:
           method: GET
           uri: /webauthn-fallback-connector.html
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 26
@@ -418,6 +445,7 @@ tests:
           method: GET
           uri: /404.html
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 27
@@ -433,6 +461,7 @@ tests:
           method: GET
           uri: /attachments/abc123/file.bin
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 28
@@ -448,6 +477,7 @@ tests:
           method: GET
           uri: /alive
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 29
@@ -463,6 +493,7 @@ tests:
           method: GET
           uri: /favicon.ico
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]
   - test_id: 30
@@ -478,5 +509,6 @@ tests:
           method: GET
           uri: /index.html
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530230]

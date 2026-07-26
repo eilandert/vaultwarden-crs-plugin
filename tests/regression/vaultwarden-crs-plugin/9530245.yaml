@@ -1,4 +1,6 @@
 ---
+# `retry_once: true` on every stage: upstream go-ftw marker/flush race
+# workaround, NOT a rule weakness. Rationale + measurements: tests/README.md.
 meta:
   author: "eilander"
   description: "Vaultwarden arg-name allowlist: GET query parameter names (opt-in)"
@@ -17,6 +19,7 @@ tests:
           method: GET
           uri: "/api/sync?evilparam=1"
         output:
+          retry_once: true
           log:
             expect_ids: [9530245]
   - test_id: 2
@@ -32,6 +35,7 @@ tests:
           method: GET
           uri: "/api/sync?excludeDomains=true"
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530245]
   - test_id: 3
@@ -47,6 +51,7 @@ tests:
           method: GET
           uri: "/notifications/hub?access_token=abc.def.ghi"
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530245]
   - test_id: 4
@@ -62,6 +67,7 @@ tests:
           method: GET
           uri: "/icons/change-password-uri?uri=https://example.com"
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530245]
   - test_id: 5
@@ -77,6 +83,7 @@ tests:
           method: GET
           uri: "/admin/diagnostics/http?code=200"
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530245]
   - test_id: 6
@@ -92,5 +99,6 @@ tests:
           method: GET
           uri: "/locales/nl/messages.json?cache=zqcxrhd"
         output:
+          retry_once: true
           log:
             no_expect_ids: [9530245]

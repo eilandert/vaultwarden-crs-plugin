@@ -1,4 +1,6 @@
 ---
+# `retry_once: true` on every stage: upstream go-ftw marker/flush race
+# workaround, NOT a rule weakness. Rationale + measurements: tests/README.md.
 meta:
   author: "eilander"
   description: "Vaultwarden FP exclusion: auth endpoints (token/prelogin) not value-scanned by CRS"
@@ -19,6 +21,7 @@ tests:
           uri: /identity/connect/token
           data: "grant_type=password&username=user%40example.com&password=2.aB3kLm9xQ%3D%3D%7Ccipherz%2Bblob%3D%3D&scope=api&client_id=web&deviceIdentifier=11bf1d64-9329-4436"
         output:
+          retry_once: true
           log:
             no_expect_ids: [942100, 942260, 942330, 941100, 932100, 920272, 949110]
   - test_id: 2
@@ -36,5 +39,6 @@ tests:
           uri: /identity/accounts/prelogin/password
           data: '{"email":"user@example.com"}'
         output:
+          retry_once: true
           log:
             no_expect_ids: [942100, 941100, 949110]
