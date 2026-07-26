@@ -1,0 +1,279 @@
+---
+meta:
+  author: "eilander"
+  description: "Vaultwarden: cross-site request to the SSO authorization flow is denied (CSRF, CVE-2026-47158)"
+rule_id: 9530236
+tests:
+  - test_id: 1
+    desc: "Cross-site GET to /identity/connect/authorize is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /identity/connect/authorize?client_id=web&state=x
+        output:
+          log:
+            expect_ids: [9530236]
+  - test_id: 2
+    desc: "Cross-site non-navigation POST to the OIDC signin callback is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/json
+            Sec-Fetch-Site: cross-site
+            Sec-Fetch-Mode: cors
+          port: 80
+          method: POST
+          uri: /identity/connect/oidc-signin-callback
+          data: '{"code":"x"}'
+        output:
+          log:
+            expect_ids: [9530236]
+  # ---- negative controls ----
+  # Each of these is a REAL flow that must survive. The rule is browser-signal
+  # based on purpose; these prove it does not catch the legitimate paths.
+  - test_id: 3
+    desc: "Same-origin navigation to the authorize endpoint passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: same-origin
+          port: 80
+          method: GET
+          uri: /identity/connect/authorize?client_id=web&state=x
+        output:
+          log:
+            no_expect_ids: [9530236]
+  # THE critical case. An IdP 302 back to the callback is a CROSS-SITE
+  # top-level navigation, NOT `none`: per the Fetch Metadata spec Sec-Fetch-Site
+  # is computed over the whole redirect chain and the cross-site downgrade is
+  # sticky, so the final hop landing back on us still carries `cross-site`.
+  # `none` is address-bar/bookmark only and an IdP redirect can never produce
+  # it. An earlier draft of this rule denied cross-site outright and wrote this
+  # case as `none`, so CI was green while every real browser SSO login would
+  # have been 403'd. Sec-Fetch-Mode: navigate is what makes it legitimate.
+  - test_id: 4
+    desc: "IdP redirect back to the callback (cross-site top-level navigation) passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+            Sec-Fetch-Mode: navigate
+            Sec-Fetch-Dest: document
+          port: 80
+          method: GET
+          uri: /identity/connect/oidc-signin-callback?code=abc&state=x
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 14
+    desc: "Address-bar navigation (Sec-Fetch-Site: none) to the callback passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: none
+            Sec-Fetch-Mode: navigate
+          port: 80
+          method: GET
+          uri: /identity/connect/oidc-signin-callback?code=abc&state=x
+        output:
+          log:
+            no_expect_ids: [9530236]
+  # Fail-closed: Sec-Fetch-Site present but Sec-Fetch-Mode absent must still
+  # deny. A negated operator against an ABSENT variable never matches, which
+  # would break the chain and wave the request through -- 9530234 seeds
+  # tx.vw_sfmode so the compare always has a value. Sabotage check: drop 9530234
+  # and this case flips to pass.
+  - test_id: 15
+    desc: "Cross-site with NO Sec-Fetch-Mode header still denies (fail-closed)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /identity/connect/authorize?client_id=web&state=x
+        output:
+          log:
+            expect_ids: [9530236]
+  - test_id: 5
+    desc: "Non-browser client (no Sec-Fetch-Site header at all) passes -- Bitwarden CLI/mobile/desktop"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: Bitwarden_CLI/2024.1.0
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /identity/connect/authorize?client_id=cli
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 6
+    desc: "The OAuth token exchange is deliberately out of scope even cross-site"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/x-www-form-urlencoded
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: POST
+          uri: /identity/connect/token
+          data: "grant_type=refresh_token&refresh_token=x"
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 7
+    desc: "An unrelated API route is untouched by the SSO CSRF rule"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /api/sync
+        output:
+          log:
+            no_expect_ids: [9530236]
+  # ---- 9530236 path scoping ----
+  # The existing file covers authorize + oidc-signin-callback. The rule's
+  # path alternation has four arms; the other two were never exercised.
+  - test_id: 8
+    desc: "Cross-site request to /identity/connect/sso is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /identity/connect/sso
+        output:
+          log:
+            expect_ids: [9530236]
+  - test_id: 9
+    desc: "Cross-site request to /identity/connect/oidc-signin is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /identity/connect/oidc-signin
+        output:
+          log:
+            expect_ids: [9530236]
+  - test_id: 10
+    desc: "The rule applies under a single-segment basepath mount"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /vault/identity/connect/authorize?client_id=web
+        output:
+          log:
+            expect_ids: [9530236]
+  # ---- Sec-Fetch-Site value coverage ----
+  # `@streq cross-site` means ONLY that exact value denies. same-site and
+  # same-origin are legitimate in-app navigations and must pass; these were
+  # untested, and a change to @rx or @contains would silently start blocking
+  # real logins.
+  - test_id: 11
+    desc: "same-site navigation to the authorize endpoint passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: same-site
+          port: 80
+          method: GET
+          uri: /identity/connect/authorize?client_id=web
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 12
+    desc: "An unrelated static asset request is untouched even cross-site"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /favicon.ico
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 13
+    desc: "The prelogin endpoint is not in the SSO CSRF scope"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+            Content-Type: application/json
+          port: 80
+          method: POST
+          uri: /identity/accounts/prelogin
+          data: '{"email":"u@example.com"}'
+        output:
+          log:
+            no_expect_ids: [9530236]

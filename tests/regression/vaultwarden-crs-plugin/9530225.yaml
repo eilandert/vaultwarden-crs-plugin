@@ -70,3 +70,106 @@ tests:
         output:
           log:
             no_expect_ids: [9530225]
+  # ---- FP guards: real client traffic must not be 415'd ----
+  # The regex is `^application/json(?:;|$)`, so a charset parameter has to
+  # pass. Every real browser/extension client sends one; if this breaks,
+  # every write on the vault 415s.
+  - test_id: 5
+    desc: "application/json with a charset parameter is allowed"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: "application/json; charset=utf-8"
+          port: 80
+          method: POST
+          uri: /api/ciphers
+          data: '{"name":"2.aaa|bbb|ccc"}'
+        output:
+          log:
+            no_expect_ids: [9530225]
+  - test_id: 6
+    desc: "A multipart attachment upload is allowed (the second documented exception)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: "multipart/form-data; boundary=xyz"
+          port: 80
+          method: POST
+          uri: /api/ciphers/abc123/attachment/v2
+          data: "--xyz--"
+        output:
+          log:
+            no_expect_ids: [9530225]
+  - test_id: 7
+    desc: "The form-encoded token grant is out of scope (it is under /identity, not /api)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/x-www-form-urlencoded
+          port: 80
+          method: POST
+          uri: /identity/connect/token
+          data: "grant_type=password&username=u&password=2.aaa%7Cbbb%7Cccc"
+        output:
+          log:
+            no_expect_ids: [9530225]
+  # ---- deny side ----
+  - test_id: 8
+    desc: "A PUT to /api with a non-JSON Content-Type is denied (not just POST)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: text/plain
+          port: 80
+          method: PUT
+          uri: /api/ciphers/abc123
+          data: "x"
+        output:
+          log:
+            expect_ids: [9530225]
+  - test_id: 9
+    desc: "text/xml on an /api write is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: text/xml
+          port: 80
+          method: POST
+          uri: /api/ciphers
+          data: "<a/>"
+        output:
+          log:
+            expect_ids: [9530225]
+# NOT TESTED HERE: an /api write with NO Content-Type header at all.
+# Real behaviour (verified live on both engines with a hand-built request:
+# apache 200, nginx 404, audit log shows 920340 + 949110 but NOT 9530225) is
+# that such a write is deliberately NOT 415'd -- the last chain link is a
+# negated regex against REQUEST_HEADERS:Content-Type, and an absent variable
+# does not match, so the chain breaks. That is intentional: it avoids FPs on
+# odd clients, and CRS has its own missing-Content-Type handling
+# (issues.md, [INFO] 2026-07-26).
+#
+# It has no go-ftw case because the harness cannot express it: go-ftw's
+# testoverride injects a default Content-Type, so a case claiming to send no
+# header actually sends one and would pass for the wrong reason. Documented
+# rather than faked.

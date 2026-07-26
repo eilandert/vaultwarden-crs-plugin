@@ -70,3 +70,123 @@ tests:
         output:
           log:
             no_expect_ids: [9530220]
+  # The existing 9530220.yaml covers PATCH, FOOBAR, GET and POST only. The
+  # allowlist has six verbs; PUT/DELETE/HEAD/OPTIONS were never proven to
+  # pass, so a typo dropping one from the regex would ship silently. Each is
+  # a real Vaultwarden verb: PUT/DELETE on ciphers, HEAD on /alive, OPTIONS
+  # for CORS preflight from the browser extension.
+  - test_id: 5
+    desc: "PUT is allowed (cipher update)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/json
+          port: 80
+          method: PUT
+          uri: /api/ciphers/abc123
+          data: '{"name":"2.aaa|bbb|ccc"}'
+        output:
+          log:
+            no_expect_ids: [9530220]
+  - test_id: 6
+    desc: "DELETE is allowed (cipher delete)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: DELETE
+          uri: /api/ciphers/abc123
+        output:
+          log:
+            no_expect_ids: [9530220]
+  - test_id: 7
+    desc: "HEAD is allowed (the /alive healthcheck)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: HEAD
+          uri: /alive
+        output:
+          log:
+            no_expect_ids: [9530220]
+  - test_id: 8
+    desc: "OPTIONS is allowed (CORS preflight from the browser extension)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: OPTIONS
+          uri: /api/sync
+        output:
+          log:
+            no_expect_ids: [9530220]
+  # ---- deny side: verbs that are not Vaultwarden's ----
+  # NOTE on verb choice: TRACE and a lowercase spoof of an allowed verb
+  # ("get") are NOT asserted here. Both are rejected by the HTTP server before
+  # ModSecurity evaluates the plugin -- verified live: nginx answers TRACE with
+  # 405 and lowercase "get" with 400, so rule 9530220 never logs and the
+  # assertion would fail on nginx while passing on Apache. The security outcome
+  # is correct either way; it just isn't this rule's doing. Verbs asserted
+  # below are ones that reach the rule on BOTH engines.
+  - test_id: 9
+    desc: "MKCOL is denied (WebDAV write verb)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: MKCOL
+          uri: /api/sync
+        output:
+          log:
+            expect_ids: [9530220]
+  - test_id: 10
+    desc: "PROPFIND is denied (WebDAV probe)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: PROPFIND
+          uri: /
+        output:
+          log:
+            expect_ids: [9530220]
+  - test_id: 11
+    desc: "SEARCH is denied (WebDAV/Exchange verb used in real probes)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: SEARCH
+          uri: /api/sync
+        output:
+          log:
+            expect_ids: [9530220]

@@ -81,6 +81,32 @@ Edit `vaultwarden-config.conf`:
 | `tx.vaultwarden-plugin_enabled` | `0` | Master on/off. **OFF by default** — the plugin weakens CRS on the Vaultwarden routes, so it must be enabled per vhost, not globally. Set to `1` only in the Vaultwarden server/location block (see Roll-out). |
 | `tx.vaultwarden-plugin_positive_security` | follows `_enabled` | Turn the path-allowlist layer on/off. Defaults to the enable flag; set to `0` explicitly in the enable block to run exclusions without the allowlist. |
 | `tx.vaultwarden-plugin_argname_allowlist` | `0` | Experimental, **independent** opt-in for the arg-name allowlists (`9530240` token form fields, `9530245` GET query names). Does **not** follow `_enabled`; enable only after a DetectionOnly burn-in. |
+| `tx.vaultwarden-plugin_admin_disabled` | `0` | **Independent** opt-in: deny `/admin` outright (`9530250`, returns 404). Removes the admin-panel RCE surface (CVE-2025-24364, GHSA-h6cc-rc6q-23j4). Does **not** follow `_enabled` — denying a real route must be a conscious choice. Turn on if you don't actively use the admin panel. |
+
+### Advisory-driven rules
+
+Three rules target specific upstream CVEs. They are defence in depth: a
+patched Vaultwarden (≥ 1.36.0) already fixes all of them, but these hold the
+line on an unpatched backend and survive a future bypass of the upstream fix.
+
+| Rule | CVE | What it does |
+|---|---|---|
+| `9530235` | [CVE-2026-47160](https://github.com/dani-garcia/vaultwarden/security/advisories/GHSA-72vh-x5jq-m82g) | Denies bare **IP literals** in the `/icons/<domain>/icon.png` path. The CVE was an SSRF where the private-address check ran on the string form while the resolver accepted decimal (`2130706433`), hex (`0x7f000001`), octal (`0177.0.0.1`) and short-form (`127.1`) encodings of the same address. Rather than enumerate bypass encodings, the rule rejects the whole IP-literal class — a favicon domain is always a hostname. |
+| `9530236` | [CVE-2026-47158](https://github.com/dani-garcia/vaultwarden/security/advisories/GHSA-pfp2-jhgq-6hg5), [CVE-2024-55225](https://github.com/dani-garcia/vaultwarden/security/advisories/GHSA-x7m9-mv49-fv73) | Denies **cross-site** requests to the SSO authorize/OIDC-callback routes, using `Sec-Fetch-Site` (browser-set, unforgeable by page JS). Requests with **no** `Sec-Fetch-Site` are allowed, so the Bitwarden CLI / mobile / desktop clients are unaffected — CSRF is a browser-only attack. `/identity/connect/token` is deliberately out of scope. |
+| `9530250` | [CVE-2025-24364](https://bi-zone.medium.com/exploring-cve-2025-24364-and-cve-2025-24365-in-vaultwarden-562ee308270f), [GHSA-h6cc-rc6q-23j4](https://github.com/dani-garcia/vaultwarden/security/advisories/GHSA-h6cc-rc6q-23j4) | Opt-in admin kill switch (see the toggle above). Both CVEs are post-auth RCE reachable only via `/admin`; removing the route removes the bug class. |
+
+**Rate-limited advisories are handled at the edge, not here.** The
+brute-force bypass ([CVE-2026-43914](https://github.com/dani-garcia/vaultwarden/security/advisories/GHSA-c5rv-q295-7w4g)),
+the 2FA rate-limit bypass (CVE-2026-27801), the SSO org-enumeration leak
+(CVE-2026-47159) and the unauthenticated WebSocket flood fixed in 1.37.0 are
+all *rate* problems. libmodsecurity3 has no persistent per-IP collections, so
+these are covered by the `limit_req` zones in
+[`contrib/angie/vault.conf`](contrib/angie/vault.conf), not by a SecRule.
+
+The remaining advisories — cross-org access, collection/group authorization,
+refresh-token rotation, WebAuthn verification ordering — are **not
+WAF-addressable**: they are authorization bugs on requests that are
+syntactically indistinguishable from legitimate ones. Patch the server.
 
 Scoping is done entirely by the per-vhost enable flag — there is **no Host
 gate**. Enable the plugin only on the Vaultwarden vhost, e.g. (Angie /
