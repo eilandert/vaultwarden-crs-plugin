@@ -28,6 +28,24 @@ COPY --from=crs /opt/crs /opt/crs
 
 # Locate the connector .so the package installed and write a complete,
 # minimal angie.conf that loads it and points ModSecurity at the shared chain.
+#
+# The `location /` line satisfies THREE constraints at once; earlier attempts
+# each fixed one and broke another (edc3c8a -> cb7473c -> 04e795d):
+#   1. ModSecurity must actually run. A bare `return 200` in `location /` is
+#      handled in the rewrite phase, before the access phase where the
+#      connector runs -- audit log stays empty and go-ftw finds no markers.
+#      A try_files lookup keeps the access phase reachable.
+#   2. REQUEST_FILENAME must stay the real URI. `try_files $uri /index.html`
+#      internally rewrites missing paths to /index.html, which 9530230 allows,
+#      so probes like /wp-login.php never trip the rule.
+#   3. A non-existent path must NOT be answered by the engine itself.
+#      `=404` makes nginx 404 every path that is not a file on disk, so
+#      legitimate routes (/api/sync) fail no_expect_ids cases that pass on
+#      Apache, whose stub 200s everything.
+# `try_files $uri $uri/ @ok` does the filesystem lookup (1), performs no URI
+# rewrite (2), and falls back to a named location that always 200s (3).
+# The suite asserts on expect_ids/no_expect_ids, never on status, so the
+# blanket 200 is not a signal -- see the go-ftw notes in tests/README.
 RUN set -eu; \
     SO="$(find /usr/lib /usr/lib64 -name 'ngx_http_modsecurity_module.so' 2>/dev/null | head -n1)"; \
     test -n "$SO"; \
@@ -48,7 +66,8 @@ RUN set -eu; \
       echo '        listen 80 default_server;'; \
       echo '        server_name ci.local;'; \
       echo '        root /var/www/html;'; \
-      echo '        location / { try_files $uri $uri/ =404; }'; \
+      echo '        location / { try_files $uri $uri/ @ok; }'; \
+      echo '        location @ok { return 200 "ok"; }'; \
       echo '    }'; \
       echo '}'; \
     } > /etc/angie/angie.conf
