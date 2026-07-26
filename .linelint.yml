@@ -1,0 +1,30 @@
+# Linelint configuration.
+#
+# Exists to work around an ordering bug in the upstream CRS plugin lint
+# workflow (coreruleset/crs-plugin-test-action .github/workflows/lint.yaml):
+# the "Lint Yaml" step (ibiqlik/action-yamllint) drops a scratch file named
+# `yamllint-XXXXXX` into the workspace, and the "Linelint" step that runs
+# immediately afterwards lints every file it finds -- including that
+# leftover, which has no trailing newline. The EOF rule then fails the job:
+#
+#     [EOF Rule] File "yamllint-GBvq3p" has lint errors
+#
+# The suffix is random per run, so this is not reproducible from the repo
+# contents and cannot be fixed by adding a newline anywhere. Ignore the
+# scratch file by pattern. Every tracked file in this repo already ends in a
+# newline, so the EOF rule stays fully enforced for real content.
+#
+# Remove this file once upstream cleans up the temp file or reorders the
+# steps.
+# Mirrors upstream's default config (autofix off -- CI must report, not
+# rewrite) plus the yamllint-* ignore.
+autofix: false
+
+ignore:
+  - .git/
+  - yamllint-*
+
+rules:
+  end-of-file:
+    enable: true
+    single-new-line: true
