@@ -21,7 +21,7 @@ tests:
           log:
             expect_ids: [9530236]
   - test_id: 2
-    desc: "Cross-site POST to the OIDC signin callback is denied"
+    desc: "Cross-site non-navigation POST to the OIDC signin callback is denied"
     stages:
       - input:
           dest_addr: 127.0.0.1
@@ -31,6 +31,7 @@ tests:
             Accept: "*/*"
             Content-Type: application/json
             Sec-Fetch-Site: cross-site
+            Sec-Fetch-Mode: cors
           port: 80
           method: POST
           uri: /identity/connect/oidc-signin-callback
@@ -57,8 +58,34 @@ tests:
         output:
           log:
             no_expect_ids: [9530236]
+  # THE critical case. An IdP 302 back to the callback is a CROSS-SITE
+  # top-level navigation, NOT `none`: per the Fetch Metadata spec Sec-Fetch-Site
+  # is computed over the whole redirect chain and the cross-site downgrade is
+  # sticky, so the final hop landing back on us still carries `cross-site`.
+  # `none` is address-bar/bookmark only and an IdP redirect can never produce
+  # it. An earlier draft of this rule denied cross-site outright and wrote this
+  # case as `none`, so CI was green while every real browser SSO login would
+  # have been 403'd. Sec-Fetch-Mode: navigate is what makes it legitimate.
   - test_id: 4
-    desc: "IdP redirect back (Sec-Fetch-Site: none, address-bar/top-level) passes"
+    desc: "IdP redirect back to the callback (cross-site top-level navigation) passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+            Sec-Fetch-Mode: navigate
+            Sec-Fetch-Dest: document
+          port: 80
+          method: GET
+          uri: /identity/connect/oidc-signin-callback?code=abc&state=x
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 14
+    desc: "Address-bar navigation (Sec-Fetch-Site: none) to the callback passes"
     stages:
       - input:
           dest_addr: 127.0.0.1
@@ -67,12 +94,34 @@ tests:
             User-Agent: OWASP CRS
             Accept: "*/*"
             Sec-Fetch-Site: none
+            Sec-Fetch-Mode: navigate
           port: 80
           method: GET
           uri: /identity/connect/oidc-signin-callback?code=abc&state=x
         output:
           log:
             no_expect_ids: [9530236]
+  # Fail-closed: Sec-Fetch-Site present but Sec-Fetch-Mode absent must still
+  # deny. A negated operator against an ABSENT variable never matches, which
+  # would break the chain and wave the request through -- 9530234 seeds
+  # tx.vw_sfmode so the compare always has a value. Sabotage check: drop 9530234
+  # and this case flips to pass.
+  - test_id: 15
+    desc: "Cross-site with NO Sec-Fetch-Mode header still denies (fail-closed)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /identity/connect/authorize?client_id=web&state=x
+        output:
+          log:
+            expect_ids: [9530236]
   - test_id: 5
     desc: "Non-browser client (no Sec-Fetch-Site header at all) passes -- Bitwarden CLI/mobile/desktop"
     stages:
