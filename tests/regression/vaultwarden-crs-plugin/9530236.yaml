@@ -1,0 +1,124 @@
+---
+meta:
+  author: "eilander"
+  description: "Vaultwarden: cross-site request to the SSO authorization flow is denied (CSRF, CVE-2026-47158)"
+rule_id: 9530236
+tests:
+  - test_id: 1
+    desc: "Cross-site GET to /identity/connect/authorize is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /identity/connect/authorize?client_id=web&state=x
+        output:
+          log:
+            expect_ids: [9530236]
+  - test_id: 2
+    desc: "Cross-site POST to the OIDC signin callback is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/json
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: POST
+          uri: /identity/connect/oidc-signin-callback
+          data: '{"code":"x"}'
+        output:
+          log:
+            expect_ids: [9530236]
+  # ---- negative controls ----
+  # Each of these is a REAL flow that must survive. The rule is browser-signal
+  # based on purpose; these prove it does not catch the legitimate paths.
+  - test_id: 3
+    desc: "Same-origin navigation to the authorize endpoint passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: same-origin
+          port: 80
+          method: GET
+          uri: /identity/connect/authorize?client_id=web&state=x
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 4
+    desc: "IdP redirect back (Sec-Fetch-Site: none, address-bar/top-level) passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: none
+          port: 80
+          method: GET
+          uri: /identity/connect/oidc-signin-callback?code=abc&state=x
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 5
+    desc: "Non-browser client (no Sec-Fetch-Site header at all) passes -- Bitwarden CLI/mobile/desktop"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: Bitwarden_CLI/2024.1.0
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /identity/connect/authorize?client_id=cli
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 6
+    desc: "The OAuth token exchange is deliberately out of scope even cross-site"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/x-www-form-urlencoded
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: POST
+          uri: /identity/connect/token
+          data: "grant_type=refresh_token&refresh_token=x"
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 7
+    desc: "An unrelated API route is untouched by the SSO CSRF rule"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /api/sync
+        output:
+          log:
+            no_expect_ids: [9530236]
