@@ -1,0 +1,117 @@
+---
+# ACCEPTED RESIDUAL -- these tests FAIL against the current ruleset ON PURPOSE.
+#
+# They are NOT part of the CI merge gate (the gate runs tests/regression and
+# tests/security). They are the executable record of a DELIBERATE design
+# trade-off already documented in the module memory ledger
+# (memory/labs/vaultwarden-crs-plugin/issues.md, "[ACCEPTED] path allowlist
+# allows ONE fabricated leading segment") and in vaultwarden-after.conf.
+#
+# Their job is to keep the trade-off VISIBLE and precisely scoped: if the
+# basepath handling is ever reworked, running this directory shows exactly
+# which probes the design lets through, and the file can be moved into
+# tests/regression/ unchanged once they go green.
+#
+# ---------------------------------------------------------------------------
+# THE TRADE-OFF
+#
+# The route allowlist matches each route token after at most ONE optional
+# leading segment:
+#   ^/?(?:[a-z0-9_-]+/)?(?:api|...|images|scripts|app|css|...)(?:/.*)?$
+#
+# That group exists so the plugin is basepath-agnostic: Vaultwarden can be
+# mounted under a single-segment prefix (src/main.rs `basepath`, e.g.
+# /vault/api/sync) and the same ruleset works. But a wildcard prefix segment
+# cannot be both "any basepath" and "not attacker-controlled" -- those are the
+# same string. So any junk first segment followed by a real route token is
+# allowed, and the trailing `(?:/.*)?$` then swallows arbitrary depth and any
+# file extension. `images`, `app`, `scripts`, `css`, `locales`, `fonts` and
+# `videos` are all route tokens and common second segments in scanner paths.
+#
+# Verified live on BOTH Apache/mod_security2 and Angie/libmodsecurity3.
+#
+# Note: the 2.0.0 tightening DID fix two-segment-deep probes -- /a/b/api/sync
+# is denied, kept as a regression test (tests/regression/.../9530230.yaml
+# test 13). Only the single-fabricated-segment case remains, by design.
+#
+# WHY IT IS ACCEPTED (from issues.md): there is no exploitable sink. Rocket
+# 404s any non-route, and the full stock CRS value-scan still runs on these
+# requests, so a real payload still trips the 941/942/930 families. Only the
+# plugin's own deny / FP-strip layer is affected, and only at paths that are
+# not real routes. This weakens defence-in-depth, not the primary defence.
+#
+# CLOSING IT would require replacing the wildcard with a CONFIGURED basepath
+# (a tx.vaultwarden-plugin_basepath the vhost sets, matched literally,
+# defaulting to empty). That is a deployment-facing knob and a rule-design
+# change -- deliberately not done silently. Multi-segment basepath deployments
+# already have to widen this group by hand, as documented in after.conf.
+# ---------------------------------------------------------------------------
+meta:
+  author: "eilander"
+  description: "ACCEPTED RESIDUAL: one fabricated leading segment + a route token passes the 9530230 allowlist (basepath-agnostic design trade-off)"
+rule_id: 9530230
+tests:
+  - test_id: 1
+    desc: "A WordPress probe using a static-dir token as its second segment is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /wp-content/images/shell.php
+        output:
+          log:
+            expect_ids: [9530230]
+  - test_id: 2
+    desc: "An upload-dir probe behind a junk prefix segment is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /uploads/images/evil.jsp
+        output:
+          log:
+            expect_ids: [9530230]
+  - test_id: 3
+    desc: "A shell drop behind a junk prefix + the scripts token is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /backup/scripts/cmd.sh
+        output:
+          log:
+            expect_ids: [9530230]
+  # config.yml is NOT an allowlisted static extension, so the root-files branch
+  # does not save it. It is allowed purely because `app` is a route token and
+  # that branch's trailing (?:/.*)?$ swallows everything after it -- i.e. once a
+  # fabricated prefix reaches a token, any extension at any depth follows.
+  - test_id: 4
+    desc: "A junk prefix plus a static-dir token does not launder an arbitrary-extension probe"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /wp-includes/app/config.yml
+        output:
+          log:
+            expect_ids: [9530230]

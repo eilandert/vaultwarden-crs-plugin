@@ -122,3 +122,109 @@ tests:
         output:
           log:
             no_expect_ids: [9530236]
+  # ---- 9530236 path scoping ----
+  # The existing file covers authorize + oidc-signin-callback. The rule's
+  # path alternation has four arms; the other two were never exercised.
+  - test_id: 8
+    desc: "Cross-site request to /identity/connect/sso is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /identity/connect/sso
+        output:
+          log:
+            expect_ids: [9530236]
+  - test_id: 9
+    desc: "Cross-site request to /identity/connect/oidc-signin is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /identity/connect/oidc-signin
+        output:
+          log:
+            expect_ids: [9530236]
+  - test_id: 10
+    desc: "The rule applies under a single-segment basepath mount"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /vault/identity/connect/authorize?client_id=web
+        output:
+          log:
+            expect_ids: [9530236]
+  # ---- Sec-Fetch-Site value coverage ----
+  # `@streq cross-site` means ONLY that exact value denies. same-site and
+  # same-origin are legitimate in-app navigations and must pass; these were
+  # untested, and a change to @rx or @contains would silently start blocking
+  # real logins.
+  - test_id: 11
+    desc: "same-site navigation to the authorize endpoint passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: same-site
+          port: 80
+          method: GET
+          uri: /identity/connect/authorize?client_id=web
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 12
+    desc: "An unrelated static asset request is untouched even cross-site"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+          port: 80
+          method: GET
+          uri: /favicon.ico
+        output:
+          log:
+            no_expect_ids: [9530236]
+  - test_id: 13
+    desc: "The prelogin endpoint is not in the SSO CSRF scope"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Sec-Fetch-Site: cross-site
+            Content-Type: application/json
+          port: 80
+          method: POST
+          uri: /identity/accounts/prelogin
+          data: '{"email":"u@example.com"}'
+        output:
+          log:
+            no_expect_ids: [9530236]

@@ -159,3 +159,324 @@ tests:
         output:
           log:
             no_expect_ids: [9530230]
+  # ---- negative controls for the mount-prefix behaviour ----
+  # Test 12 is the reason the optional prefix group exists at all: a
+  # single-segment basepath mount (src/main.rs `basepath`) must stay reachable.
+  # Any tightening of the prefix wildcard has to keep this green -- see the
+  # accepted-residual suite (tests/accepted-residual/) for the cases it currently lets
+  # through, and issues.md for why the trade-off is accepted and why closing it needs a CONFIGURED basepath
+  # rather than a wildcard segment.
+  - test_id: 11
+    desc: "A real route at the webroot still passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /api/sync
+        output:
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 12
+    desc: "A single-segment basepath mount still passes (the reason the prefix group exists)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /vault/api/sync
+        output:
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 13
+    desc: "A two-segment-deep probe is denied (the 2.0.0 tightening that DID work)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /a/b/api/sync
+        output:
+          log:
+            expect_ids: [9530230]
+  # Traversal. t:normalizePath collapses ../ before the allowlist regex runs,
+  # so a traversal is judged on its NORMALIZED path.
+  #
+  # Note on layering, verified live on BOTH engines: a traversal that escapes
+  # the document root (/locales/../../etc/passwd, /css/../../.git/config) is
+  # rejected by the HTTP SERVER with 400 before ModSecurity evaluates the
+  # plugin -- Apache logs AH10244 "invalid URI path", nginx likewise 400s. Such
+  # cases therefore CANNOT assert 9530230: the request never reaches it, and
+  # the assertion would pass on one engine and fail on the other. They are
+  # covered by the server plus stock CRS 930130 instead. Test 14 stays inside
+  # the root, normalizes to /.env, and IS this rule's job.
+  - test_id: 14
+    desc: "Traversal out of the api mount to a dotfile is denied after normalization"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /api/../.env
+        output:
+          log:
+            expect_ids: [9530230]
+  - test_id: 15
+    desc: "A dotfile probe that does not need traversal is denied by the allowlist"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /.env.production
+        output:
+          log:
+            expect_ids: [9530230]
+  - test_id: 16
+    desc: "A dotfile directory probe is denied by the allowlist"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /.svn/entries
+        output:
+          log:
+            expect_ids: [9530230]
+  # Common scanner targets. Cheap, but this is the rule's actual job and none
+  # of them were covered before.
+  - test_id: 17
+    desc: "A Spring actuator probe is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /actuator/env
+        output:
+          log:
+            expect_ids: [9530230]
+  - test_id: 18
+    desc: "An xmlrpc probe is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /xmlrpc.php
+        output:
+          log:
+            expect_ids: [9530230]
+  - test_id: 19
+    desc: "A .git config probe is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /.git/config
+        output:
+          log:
+            expect_ids: [9530230]
+  - test_id: 20
+    desc: "An unlisted .well-known route is denied (only two are allowlisted)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /.well-known/security.txt
+        output:
+          log:
+            expect_ids: [9530230]
+  - test_id: 21
+    desc: "A deep path ending in a static extension is denied (single-segment anchor)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /deep/fake/path.json
+        output:
+          log:
+            expect_ids: [9530230]
+  # ---- negative controls: real web-vault surface must stay reachable ----
+  - test_id: 22
+    desc: "The apple-app-site-association well-known route passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /.well-known/apple-app-site-association
+        output:
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 23
+    desc: "The change-password well-known redirect passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /.well-known/change-password
+        output:
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 24
+    desc: "A web-vault SSO connector page passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /sso-connector.html
+        output:
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 25
+    desc: "The webauthn-fallback connector page passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /webauthn-fallback-connector.html
+        output:
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 26
+    desc: "The web-vault 404 page passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /404.html
+        output:
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 27
+    desc: "A top-level attachment download passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /attachments/abc123/file.bin
+        output:
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 28
+    desc: "The /alive healthcheck passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /alive
+        output:
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 29
+    desc: "A root-level favicon passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /favicon.ico
+        output:
+          log:
+            no_expect_ids: [9530230]
+  - test_id: 30
+    desc: "The web-vault index page passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /index.html
+        output:
+          log:
+            no_expect_ids: [9530230]

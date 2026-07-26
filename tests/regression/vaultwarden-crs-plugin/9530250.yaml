@@ -122,3 +122,87 @@ tests:
         output:
           log:
             no_expect_ids: [9530250]
+  # The existing 9530250.yaml proves the on/off gate works. These pin the
+  # PATH boundary of the rule: the kill switch must cover the whole admin
+  # surface (any depth, any mount) without swallowing unrelated routes whose
+  # names merely start with "admin". Kill-switch-ON scoping in CI is Host-
+  # scoped -- see the CI note in crs-main.conf (9900014, Host admin-off.local).
+  - test_id: 8
+    desc: "With the kill switch on, /admin under a basepath mount is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: admin-off.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /vault/admin
+        output:
+          log:
+            expect_ids: [9530250]
+  - test_id: 9
+    desc: "With the kill switch on, a trailing-slash /admin/ is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: admin-off.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /admin/
+        output:
+          log:
+            expect_ids: [9530250]
+  - test_id: 10
+    desc: "With the kill switch on, a deep admin action path is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: admin-off.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /admin/users/abc123/delete
+        output:
+          log:
+            expect_ids: [9530250]
+  # ---- scoping guards: near-miss names are NOT the admin panel ----
+  # These must not be attributed to the kill switch. They are still denied by
+  # the route allowlist (9530230) because they are not real routes -- which is
+  # correct, and is exactly why the assertion here is scoped to 9530250 only.
+  - test_id: 11
+    desc: "/administrator is not the admin panel (denied by the route allowlist, not the kill switch)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: admin-off.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /administrator
+        output:
+          log:
+            no_expect_ids: [9530250]
+  - test_id: 12
+    desc: "/admin.php is not the admin panel (denied by the route allowlist, not the kill switch)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: admin-off.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /admin.php
+        output:
+          log:
+            no_expect_ids: [9530250]

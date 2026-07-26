@@ -176,3 +176,154 @@ tests:
         output:
           log:
             no_expect_ids: [9530235]
+  # The existing 9530235.yaml covers the loopback encodings from the CVE.
+  # These extend to the other targets that matter for an SSRF into a
+  # self-hosted network -- RFC1918, link-local, and the encodings of those
+  # ranges rather than only of 127.0.0.1.
+  - test_id: 12
+    desc: "RFC1918 10.x literal is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/10.0.0.1/icon.png
+        output:
+          log:
+            expect_ids: [9530235]
+  - test_id: 13
+    desc: "RFC1918 192.168.x literal is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/192.168.1.1/icon.png
+        output:
+          log:
+            expect_ids: [9530235]
+  - test_id: 14
+    desc: "Hex encoding of an RFC1918 address is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/0xa000001/icon.png
+        output:
+          log:
+            expect_ids: [9530235]
+  - test_id: 15
+    desc: "Full octal encoding of the loopback is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/017700000001/icon.png
+        output:
+          log:
+            expect_ids: [9530235]
+  - test_id: 16
+    desc: "A bare zero (0 == 0.0.0.0, routes to localhost on Linux) is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/0/icon.png
+        output:
+          log:
+            expect_ids: [9530235]
+  - test_id: 17
+    desc: "A bare (unbracketed) IPv6 link-local literal is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/fe80::1/icon.png
+        output:
+          log:
+            expect_ids: [9530235]
+  - test_id: 18
+    desc: "The rule applies under a single-segment basepath mount too"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /vault/icons/127.0.0.1/icon.png
+        output:
+          log:
+            expect_ids: [9530235]
+  # ---- FP guards: hostnames that merely LOOK numeric must still resolve ----
+  # These pin the boundary of the IP-literal class. A regex tightened without
+  # care (e.g. dropping the anchors) breaks them and kills real favicons.
+  - test_id: 19
+    desc: "A hostname whose first label is a long number passes (2130706433.com)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/2130706433.com/icon.png
+        output:
+          log:
+            no_expect_ids: [9530235]
+  - test_id: 20
+    desc: "A five-label dotted name is not a valid IPv4 and passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/1.2.3.4.5/icon.png
+        output:
+          log:
+            no_expect_ids: [9530235]
+  - test_id: 21
+    desc: "A punycode/IDN hostname passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/xn--80ak6aa92e.com/icon.png
+        output:
+          log:
+            no_expect_ids: [9530235]
+  - test_id: 22
+    desc: "A hostname with a hyphen and digits passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/cdn-3.example-site.net/icon.png
+        output:
+          log:
+            no_expect_ids: [9530235]
+  - test_id: 23
+    desc: "A non-icon.png path under /icons is out of scope for this rule"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: "/icons/change-password-uri?uri=https://example.com"
+        output:
+          log:
+            no_expect_ids: [9530235]
