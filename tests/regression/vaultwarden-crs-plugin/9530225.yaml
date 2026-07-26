@@ -160,16 +160,16 @@ tests:
         output:
           log:
             expect_ids: [9530225]
-  # NOT TESTED HERE: an /api write with NO Content-Type header at all.
-  # Real behaviour (verified live on both engines with a hand-built request:
-  # apache 200, nginx 404, audit log shows 920340 + 949110 but NOT 9530225) is
-  # that such a write is deliberately NOT 415'd -- the last chain link is a
-  # negated regex against REQUEST_HEADERS:Content-Type, and an absent variable
-  # does not match, so the chain breaks. That is intentional: it avoids FPs on
-  # odd clients, and CRS has its own missing-Content-Type handling
-  # (issues.md, [INFO] 2026-07-26).
-  #
-  # It has no go-ftw case because the harness cannot express it: go-ftw's
-  # testoverride injects a default Content-Type, so a case claiming to send no
-  # header actually sends one and would pass for the wrong reason. Documented
-  # rather than faked.
+# NOT TESTED HERE: an /api write with NO Content-Type header at all.
+# Real behaviour (verified live on both engines with a hand-built request:
+# apache 200, nginx 404, audit log shows 920340 + 949110 but NOT 9530225) is
+# that such a write is deliberately NOT 415'd -- the last chain link is a
+# negated regex against REQUEST_HEADERS:Content-Type, and an absent variable
+# does not match, so the chain breaks. That is intentional: it avoids FPs on
+# odd clients, and CRS has its own missing-Content-Type handling
+# (issues.md, [INFO] 2026-07-26).
+#
+# It has no go-ftw case because the harness cannot express it: go-ftw's
+# testoverride injects a default Content-Type, so a case claiming to send no
+# header actually sends one and would pass for the wrong reason. Documented
+# rather than faked.
