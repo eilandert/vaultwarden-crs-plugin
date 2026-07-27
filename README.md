@@ -155,6 +155,20 @@ On Apache/mod_security2, set the same variable inside the matching
 > `POST`/`PUT` to `/api` with **no** `Content-Type` header at all bypassed the
 > `9530225` Content-Type check entirely (absent-variable fail-open).
 
+> **Upgrading to 2.2.2 (security):** the JSON-API false-positive exclusion
+> `9530103` was an unanchored path prefix, so a fabricated suffix —
+> `/api/ciphersEVIL`, `/api/accounts-evil/x`, `/api/sendsEVIL` — also matched
+> and stripped 284 CRS rules (the `platform-multi` and `attack-injection-php`
+> tag families, spanning SQLi/XSS/Java/RCE/web-shells) on a path Vaultwarden
+> does not route. Unlike the `9530105` case fixed in 2.2.1, the path allowlist
+> does **not** compensate: `9530230` allows `api` as a mount and its trailing
+> `(?:/.*)?$` swallows the fabricated suffix, so nothing else inspected these
+> requests. Measured on both engines: a PHP-injection payload fires
+> `933100`/`933130`/`933160`/`949110` on `/api/ciphersEVIL` and none of them on
+> the real `/api/ciphers/import`.
+> 2.2.2 end-bounds the regex; real routes and their subpaths keep the
+> exclusion. No config change is needed; just upgrade.
+
 Rule ID range: **9,530,000 – 9,530,999** (block base 9,530,000; free in the
 [CRS plugin registry](https://github.com/coreruleset/plugin-registry),
 pending formal assignment).
