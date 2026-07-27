@@ -1,0 +1,84 @@
+---
+# `retry_once: true` on every stage: upstream go-ftw marker/flush race
+# workaround, NOT a rule weakness. Rationale + measurements: tests/README.md.
+#
+# Proves the CONFIGURED basepath (tx.vaultwarden-plugin_basepath, host
+# `basepath.local` in tests/integration/crs/crs-main.conf, set to `vault`)
+# closes the one-fabricated-leading-segment residual that
+# tests/accepted-residual/vaultwarden-crs-plugin/9530230.yaml documents as
+# accepted under the DEFAULT (unconfigured) wildcard-tolerant route map.
+#
+# Two rule IDs cover the configured-basepath branch:
+#   9530231 -- the leading segment does NOT match the configured basepath at
+#              all (basepath is now REQUIRED, not an optional wildcard).
+#   9530232 -- the leading segment DOES match, but the remainder is outside
+#              the (now-strict, no-wildcard) route map.
+meta:
+  author: "eilander"
+  description: "Vaultwarden positive-security: configured basepath closes the fabricated-leading-segment residual"
+rule_id: 9530231
+tests:
+  - test_id: 1
+    desc: "The real mounted route under the configured basepath (/vault/api/sync) passes"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: basepath.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /vault/api/sync
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [9530231, 9530232]
+  - test_id: 2
+    desc: "A fabricated leading segment matching a real route token (accepted under the default wildcard) is now denied by the basepath-mismatch check -- images IS a real static dir, so under the default wildcard /wp-content/images/... would pass; with basepath=vault configured, wp-content != vault so it is denied before the route map is even consulted"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: basepath.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /wp-content/images/shell.php
+        output:
+          retry_once: true
+          log:
+            expect_ids: [9530231]
+  - test_id: 3
+    desc: "The configured basepath itself, with no further route token, is denied by the strict (no-wildcard) route map"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: basepath.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /vault/wp-login.php
+        output:
+          retry_once: true
+          log:
+            expect_ids: [9530232]
+  - test_id: 4
+    desc: "A real route missing the now-required basepath prefix is denied (basepath is REQUIRED, not optional, once configured)"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: basepath.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: /api/sync
+        output:
+          retry_once: true
+          log:
+            expect_ids: [9530231]
