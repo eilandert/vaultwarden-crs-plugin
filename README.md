@@ -79,7 +79,7 @@ Edit `vaultwarden-config.conf`:
 | Variable | Default | Meaning |
 |---|---|---|
 | `tx.vaultwarden-plugin_enabled` | `0` | Master on/off. **OFF by default** — the plugin weakens CRS on the Vaultwarden routes, so it must be enabled per vhost, not globally. Set to `1` only in the Vaultwarden server/location block (see Roll-out). |
-| `tx.vaultwarden-plugin_positive_security` | follows `_enabled` | Turn the path-allowlist layer on/off. Defaults to the enable flag; set to `0` explicitly in the enable block to run exclusions without the allowlist. |
+| `tx.vaultwarden-plugin_positive_security` | `0` | **Independent** opt-in for the path-allowlist layer (`9530230`, plus the `9530220` method and `9530225` Content-Type rules). Does **not** follow `_enabled` — it denies by default, so an unknown route is answered 404; enable only after a DetectionOnly burn-in. **Changed in 2.2.0:** this used to follow `_enabled`, so upgrading deployments must now set it to `1` explicitly to keep the allowlist running. **Fixed in 2.2.1:** this flag no longer gates the CVE-driven rules `9530234`/`9530235`/`9530236` — they run whenever the plugin is enabled. |
 | `tx.vaultwarden-plugin_argname_allowlist` | `0` | Experimental, **independent** opt-in for the arg-name allowlists (`9530240` token form fields, `9530245` GET query names). Does **not** follow `_enabled`; enable only after a DetectionOnly burn-in. |
 | `tx.vaultwarden-plugin_admin_disabled` | `0` | **Independent** opt-in: deny `/admin` outright (`9530250`, returns 404). Removes the admin-panel RCE surface (CVE-2025-24364, GHSA-h6cc-rc6q-23j4). Does **not** follow `_enabled` — denying a real route must be a conscious choice. Turn on if you don't actively use the admin panel. |
 
@@ -131,12 +131,43 @@ On Apache/mod_security2, set the same variable inside the matching
 1. Install, then enable the plugin in the Vaultwarden vhost only
    (`setvar:tx.vaultwarden-plugin_enabled=1`). The exclusions are safe
    immediately and never touch other vhosts on the same CRS engine.
-2. Run CRS in **DetectionOnly** and watch the audit log for `9530230` hits
-   — those are paths missing from the route allowlist. If you front
-   Vaultwarden with extra routes (a reverse-proxy health check, a custom
-   connector), add them to the inline allowlist regex on rule `9530230` in
-   `vaultwarden-after.conf`.
+2. Optionally add the path allowlist — it is a separate opt-in
+   (`setvar:tx.vaultwarden-plugin_positive_security=1`), because it denies by
+   default. Do this in the same block, then run CRS in **DetectionOnly** and
+   watch the audit log for `9530230` hits — those are paths missing from the
+   route allowlist. If you front Vaultwarden with extra routes (a
+   reverse-proxy health check, a custom connector), add them to the inline
+   allowlist regex on rule `9530230` in `vaultwarden-after.conf`.
 3. Flip CRS back to blocking mode.
+
+> **Upgrading to 2.2.0:** `tx.vaultwarden-plugin_positive_security` no longer
+> follows `tx.vaultwarden-plugin_enabled`. If you were relying on the
+> allowlist switching on with the plugin, add the explicit `setvar` from step
+> 2 — otherwise the allowlist silently stops running after the upgrade.
+
+> **Upgrading to 2.2.1 (security):** on 2.2.0 the opt-in above also switched
+> off the CVE-driven rules that happen to share its ID range — `9530235`
+> (icon-endpoint SSRF, CVE-2026-47160) and `9530236` + its `9530234` seeder
+> (SSO CSRF, CVE-2026-47158). A deployment that set only
+> `tx.vaultwarden-plugin_enabled=1` was therefore running **neither** CVE
+> defence. 2.2.1 narrows the strip range so those rules always run with the
+> plugin. No config change is needed; just upgrade. Also fixed: a
+> `POST`/`PUT` to `/api` with **no** `Content-Type` header at all bypassed the
+> `9530225` Content-Type check entirely (absent-variable fail-open).
+
+> **Upgrading to 2.2.2 (security):** the JSON-API false-positive exclusion
+> `9530103` was an unanchored path prefix, so a fabricated suffix —
+> `/api/ciphersEVIL`, `/api/accounts-evil/x`, `/api/sendsEVIL` — also matched
+> and stripped 284 CRS rules (the `platform-multi` and `attack-injection-php`
+> tag families, spanning SQLi/XSS/Java/RCE/web-shells) on a path Vaultwarden
+> does not route. Unlike the `9530105` case fixed in 2.2.1, the path allowlist
+> does **not** compensate: `9530230` allows `api` as a mount and its trailing
+> `(?:/.*)?$` swallows the fabricated suffix, so nothing else inspected these
+> requests. Measured on both engines: a PHP-injection payload fires
+> `933100`/`933130`/`933160`/`949110` on `/api/ciphersEVIL` and none of them on
+> the real `/api/ciphers/import`.
+> 2.2.2 end-bounds the regex; real routes and their subpaths keep the
+> exclusion. No config change is needed; just upgrade.
 
 Rule ID range: **9,530,000 – 9,530,999** (block base 9,530,000; free in the
 [CRS plugin registry](https://github.com/coreruleset/plugin-registry),

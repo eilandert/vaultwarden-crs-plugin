@@ -42,3 +42,81 @@ tests:
           retry_once: true
           log:
             no_expect_ids: [942100, 941100, 949110]
+  # 2.2.1 (codex audit #7): the exemption used to be an unanchored prefix, so a
+  # fabricated suffix stripped the ENTIRE CRS rule set on a path Vaultwarden
+  # does not route. These assert the boundary: an XSS payload on the fabricated
+  # path must still be seen by CRS (941xxx), while the real routes stay exempt.
+  - test_id: 3
+    desc: "A fabricated suffix on the token route does NOT strip CRS"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/x-www-form-urlencoded
+          port: 80
+          method: POST
+          uri: /identity/connect/token.evil
+          data: 'grant_type=<script>alert(1)</script>'
+        output:
+          retry_once: true
+          log:
+            expect_ids: [941390]
+  - test_id: 4
+    desc: "A fabricated suffix on the prelogin route does NOT strip CRS"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/x-www-form-urlencoded
+          port: 80
+          method: POST
+          uri: /identity/accounts/preloginevil
+          data: 'grant_type=<script>alert(1)</script>'
+        output:
+          retry_once: true
+          log:
+            expect_ids: [941390]
+  # The paired negative controls: the REAL routes must stay exempt, or the
+  # anchoring fix would have turned an over-broad strip into an FP.
+  - test_id: 5
+    desc: "The real prelogin subpath is still exempt from CRS value scanning"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/x-www-form-urlencoded
+          port: 80
+          method: POST
+          uri: /identity/accounts/prelogin/password
+          data: 'grant_type=<script>alert(1)</script>'
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [941390]
+  - test_id: 6
+    desc: "The real token route is still exempt from CRS value scanning"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/x-www-form-urlencoded
+          port: 80
+          method: POST
+          uri: /identity/connect/token
+          data: 'grant_type=<script>alert(1)</script>'
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [941390]

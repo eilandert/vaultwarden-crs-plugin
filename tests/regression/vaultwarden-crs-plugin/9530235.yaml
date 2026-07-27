@@ -352,3 +352,91 @@ tests:
           retry_once: true
           log:
             no_expect_ids: [9530235]
+  # 2.2.1 (codex audit #4): the previous regex enumerated whole-string shapes
+  # -- all-decimal, all-octal, or one bare hex integer -- so a MIXED-radix
+  # literal matched no branch and was allowed through even though WHATWG parses
+  # each component independently and it resolves to loopback. Also a trailing
+  # dot. One test per bypass form so a regression reopening ONE fails here.
+  - test_id: 24
+    desc: "Mixed-radix IPv4 (127.0.0x0.1 == 127.0.0.1) is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/127.0.0x0.1/icon.png
+        output:
+          retry_once: true
+          log:
+            expect_ids: [9530235]
+  - test_id: 25
+    desc: "Mixed hex-and-decimal short form (0x7f.1) is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/0x7f.1/icon.png
+        output:
+          retry_once: true
+          log:
+            expect_ids: [9530235]
+  - test_id: 26
+    desc: "Mixed octal-and-decimal (0177.0.0.1) is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/0177.0.0.1/icon.png
+        output:
+          retry_once: true
+          log:
+            expect_ids: [9530235]
+  - test_id: 27
+    desc: "Trailing-dot IPv4 (127.0.0.1.) is denied"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: ci.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/127.0.0.1./icon.png
+        output:
+          retry_once: true
+          log:
+            expect_ids: [9530235]
+  # 2.2.1 (codex audit #2): the positive-security gate (9530201) used to strip
+  # 9530220-9530239, which swallowed this CVE rule too. With positive_security
+  # at its default of 0, enabling the plugin left the CVE-2026-47160 SSRF
+  # defence silently inert. Host possec-off.local turns that flag back off in
+  # CI (crs-main.conf 9900015) so this asserts the CVE rule survives the gate.
+  - test_id: 28
+    desc: "IP-literal SSRF defence still runs when positive-security is OFF"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: possec-off.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /icons/127.0.0.1/icon.png
+        output:
+          retry_once: true
+          log:
+            expect_ids: [9530235]
+  - test_id: 29
+    desc: "The route allowlist itself is correctly OFF for that Host"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers: {Host: possec-off.local, User-Agent: OWASP CRS, Accept: "*/*"}
+          port: 80
+          method: GET
+          uri: /wp-login.php
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [9530230]

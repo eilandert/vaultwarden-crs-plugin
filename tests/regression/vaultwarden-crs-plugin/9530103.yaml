@@ -1,0 +1,122 @@
+---
+# `retry_once: true` on every stage: upstream go-ftw marker/flush race
+# workaround, NOT a rule weakness. Rationale + measurements: tests/README.md.
+meta:
+  author: "eilander"
+  description: "Vaultwarden FP exclusion: JSON API write paths, scoped to real routes only"
+rule_id: 9530103
+tests:
+  - test_id: 1
+    desc: "An EncString cipher blob on /api/ciphers does not trip the stripped CRS families"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/json
+          port: 80
+          method: POST
+          uri: /api/ciphers
+          data: '{"name":"2.aB3kLm9xQ==|cipherz+blob==|mac0=","notes":null}'
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [942100, 942260, 942330, 949110]
+  # The attack payload rides in the QUERY STRING, not a JSON body: this CRS
+  # build ships `ctl:requestBodyProcessor=JSON` commented out (crs-setup.conf),
+  # so a JSON body never populates ARGS and 933160 cannot match it. A body-based
+  # case would pass for the wrong reason -- vacuous, the same trap as the
+  # absent-Content-Type case in tests/README.md. The query string is parsed
+  # unconditionally, so it exercises the exclusion scope for real.
+  #
+  # 2.2.2: the exemption used to be an unanchored prefix, so a fabricated
+  # suffix stripped 284 CRS rules (platform-multi + attack-injection-php) on a
+  # path Vaultwarden does not route. Unlike 9530105 the path allowlist does NOT
+  # compensate here: 9530230 allows `api` as a mount and its `(?:/.*)?$`
+  # swallows the fabricated suffix, so nothing else catches these. Measured
+  # with full CRS: a PHP-RCE body that is interrupted on /somewhere passed
+  # uninterrupted on /api/ciphersEVIL.
+  - test_id: 2
+    desc: "A fabricated suffix on the ciphers route does NOT strip CRS"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: "/api/ciphersEVIL?x=%3C%3Fphp%20system(%24_GET%5Bc%5D)%3B%20%3F%3E"
+        output:
+          retry_once: true
+          log:
+            expect_ids: [933160]
+  - test_id: 3
+    desc: "A fabricated suffix on the accounts route does NOT strip CRS"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: "/api/accounts-evil/x?x=%3C%3Fphp%20system(%24_GET%5Bc%5D)%3B%20%3F%3E"
+        output:
+          retry_once: true
+          log:
+            expect_ids: [933160]
+  - test_id: 4
+    desc: "A fabricated suffix on the sends route does NOT strip CRS"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: "/api/sendsEVIL?x=%3C%3Fphp%20system(%24_GET%5Bc%5D)%3B%20%3F%3E"
+        output:
+          retry_once: true
+          log:
+            expect_ids: [933160]
+  # The paired negative controls: the REAL routes must stay exempt, or the
+  # anchoring fix would have turned an over-broad strip into an FP.
+  - test_id: 5
+    desc: "The real ciphers import subpath is still exempt"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: "/api/ciphers/import?x=%3C%3Fphp%20system(%24_GET%5Bc%5D)%3B%20%3F%3E"
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [933160]
+  - test_id: 6
+    desc: "The real organization users subpath is still exempt"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+          port: 80
+          method: GET
+          uri: "/api/organizations/abc/users/invite?x=%3C%3Fphp%20system(%24_GET%5Bc%5D)%3B%20%3F%3E"
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [933160]

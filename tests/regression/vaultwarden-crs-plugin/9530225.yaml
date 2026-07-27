@@ -184,3 +184,49 @@ tests:
 # testoverride injects a default Content-Type, so a case claiming to send no
 # header actually sends one and would pass for the wrong reason. Documented
 # rather than faked.
+  # NOTE (2.2.1, codex audit #6): the ABSENT-Content-Type fail-open fixed in
+  # 2.2.1 is deliberately NOT tested here. go-ftw injects a default
+  # Content-Type on every request, so a yaml case for "no CT header at all"
+  # would pass for the wrong reason no matter what the rule does -- it was
+  # measured passing against BOTH the fixed and the sabotaged plugin. The real
+  # check needs a raw socket and lives in tests/absent-content-type-probe.sh,
+  # which is sabotage-verified on both engines.
+  #
+  # 2.2.1 (codex audit #8): the multipart exceptions were bare prefixes, so a
+  # fabricated path matched the exception and skipped CT enforcement entirely.
+  - test_id: 11
+    desc: "A fabricated path near the multipart exception still enforces Content-Type"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: application/x-www-form-urlencoded
+          port: 80
+          method: POST
+          uri: /api/sends/fileevil
+          data: 'x=1'
+        output:
+          retry_once: true
+          log:
+            expect_ids: [9530225]
+  - test_id: 12
+    desc: "The real multipart upload route is still exempt from Content-Type enforcement"
+    stages:
+      - input:
+          dest_addr: 127.0.0.1
+          headers:
+            Host: ci.local
+            User-Agent: OWASP CRS
+            Accept: "*/*"
+            Content-Type: multipart/form-data; boundary=xx
+          port: 80
+          method: POST
+          uri: /api/sends/file
+          data: "--xx\r\nContent-Disposition: form-data; name=\"f\"\r\n\r\nv\r\n--xx--\r\n"
+        output:
+          retry_once: true
+          log:
+            no_expect_ids: [9530225]
